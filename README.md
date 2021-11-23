@@ -1,6 +1,6 @@
 # SL Test Cricket Player Search Engine
 
-<img src="https://github.com/prahack/sl-cricket-player-search-engine/blob/master/images/img.jpeg?raw=true">
+<img src="https://github.com/prahack/sl-cricket-player-search-engine/blob/main/images/img.jpeg?raw=true">
 
 ## Example Search Queries
 * සනත් ජයසූරිය(`by name`)
