@@ -1,7 +1,7 @@
 import re
 import queries
 from helper import calSimilarity_words
-from lists import list_runs, list_wickets, gte, lte, all,names
+from lists import list_runs, list_wickets, gte, lte, all, names, districts, stop_words
 from elasticsearch import Elasticsearch, helpers
 # from preprocessing import preprocess
 
@@ -10,14 +10,16 @@ INDEX = 'sl-cricket'
 
 #boosting function
 def boost(boost_array):
-    name ="name^{}".format(boost_array[1])
-    batting = "batting^{}".format(boost_array[2])
-    bowling = "bowling^{}".format(boost_array[3])
-    matches = "matches^{}".format(boost_array[4])
+    name ="name^{}".format(boost_array[0])
+    batting = "batting^{}".format(boost_array[1])
+    bowling = "bowling^{}".format(boost_array[2])
+    matches = "matches^{}".format(boost_array[3])
     top_score = "top_score^{}".format(boost_array[7])
     best_bowling = "best_bowling^{}".format(boost_array[8])
+    description = "description^{}".format(boost_array[9])
+    carrer = "career^{}".format(boost_array[10])
     
-    return [name, batting, bowling, matches, top_score, best_bowling]
+    return [name, batting, bowling, matches, top_score, best_bowling, description, carrer]
 
 
 #function for search using the name
@@ -34,36 +36,38 @@ def searchByName(tokens):
             found_name = True
   return found_name
 
+def searchForDistrict(tokens):
+  found_district = False
+  for t in tokens:
+    if t in districts:
+      found_district = True
+      break    
+  return found_district
+
+def removeStopWords(tokens):
+  new_tokens = []
+  for i in tokens:
+    if i not in stop_words:
+      new_tokens.append(i)
+  return new_tokens
+
 
 def search(phrase):
-    #name,batting,bowling,matches,runs,wickets,top_score,best_bowling
-    flags = [1, 1, 1, 1, 0, 0, 1, 1, 1]
-
-    # #search list
-    # # 0 - position
-    # # 1 - party
-    # # 2 - district
-    # # 3 - related_subjects
-    # # 4 - contact info
-    # # 5 - participation
-    # search_list = [0, 0, 0, 0, 0, 0]
+    #name,batting,bowling,matches,runs,wickets,top_score,best_bowling,description,career
+    flags = [1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1]
 
     num=0
     tokens = phrase.split()
     search_by_name = searchByName(tokens)
     tokens = list(set(tokens))
+    tokens = removeStopWords(tokens)
     containsDigit = bool(re.search(r'\d', phrase))
+    district_cantains = searchForDistrict(tokens)
     meassure = None
     field = None
     if search_by_name:
         print("Name found")
         flags[0] = 5
-    #   for word in tokens:
-    #     for i in range(len(synonym_list)):
-    #       if word in synonym_list[i]:
-    #         print('Boosting field', i, 'for', word, 'in synonym list - search by name')
-    #         search_list[i] = 1
-    #         break
 
     elif containsDigit: #check number
       popularity = False
@@ -95,7 +99,9 @@ def search(phrase):
             field = 'runs'
             flags[4] = 1
 
-
+    elif district_cantains:
+      flags[9] = 5
+      flags[10] = 5
     else: #Not a name or not a digit
       # Identify numbers
       search_terms = []
@@ -194,6 +200,27 @@ def search(phrase):
             best_bowling = player["best_bowling"]
             outputs.append([name, birthday, batting, bowling, description, career, matches, runs, wickets, top_score, best_bowling])
         res = outputs
+    elif district_cantains:
+      query_body = queries.agg_multi_match_q(phrase)
+      res = client.search(index=INDEX, body=query_body)
+      resl = res['hits']['hits']
+      print(resl)
+      outputs = []
+      for hit in resl:
+        player = hit['_source']
+        name = player["name"]
+        birthday = player["birthday"]
+        batting = player["batting"]
+        bowling = player["bowling"]
+        description = player["description"] 
+        career = player["career"]
+        matches = player["matches"]
+        runs = player["runs"]
+        wickets = player["wickets"] 
+        top_score = player["top_score"]
+        best_bowling = player["best_bowling"]
+        outputs.append([name, birthday, batting, bowling, description, career, matches, runs, wickets, top_score, best_bowling])
+      res = outputs
     else:
         print('searching no special')
         query_body = queries.agg_multi_match_q(phrase)
